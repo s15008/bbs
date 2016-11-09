@@ -1,3 +1,5 @@
+import random
+
 import http.server
 import socketserver
 import urllib.parse
@@ -13,7 +15,7 @@ class database():
     def create(self):
         conn = sqlite3.connect(self.path, isolation_level='EXCLUSIVE')
         try:
-            conn.execute("create table if not exists entry (id integer primary key, message text, date real);")
+            conn.execute("create table if not exists entry (id integer primary key, name text, message text, date real, color text);")
             conn.commit()
         except Exception as e:
             print(e)
@@ -21,10 +23,10 @@ class database():
         finally:
             conn.close()
 
-    def post(self, message):
+    def post(self, name, message, color):
         conn = sqlite3.connect(self.path, isolation_level='DEFERRED')
         try:
-            conn.execute("insert into entry(message, date) values(?, ?);", (message, time.time()))
+            conn.execute("insert into entry(name, message, date, color) values(?, ?, ?, ?);", (name, message, time.time(), color))
             conn.commit()
         except Exception as e:
             print(e)
@@ -36,10 +38,11 @@ class database():
         result = []
         conn = sqlite3.connect(self.path)
         try:
-            result = [x for x in conn.execute("select id, message, date from entry;")]
+            result = [x for x in conn.execute("select id, name, message, date, color from entry;")]
         finally:
             conn.close()
 
+        print(result)
         return result
 
 class HttpHandler(http.server.SimpleHTTPRequestHandler):
@@ -63,16 +66,19 @@ class HttpHandler(http.server.SimpleHTTPRequestHandler):
         # 本文
         if request == '/get':
             # 投稿用フォームを挿入
-            response += '<section class="panel"><header>Post from:</header><main><form method="GET" action="/post"><input type="text" name="message" placeholder="message"><input type="submit" value="送信"></form></main></section>'
+            response += '<section class="panel"><header class="bg-blue">Post from:</header><main><form method="GET" action="/post"><input type="text" name="name_" placeholder="name"><input type="text" name="message" placeholder="message"><button class="bg-indigo" type="submit" value="send">送信</button></form></main></section>'
             # 投稿内容を表示
-            for e in sorted(db.get(), key=lambda e: e[2], reverse=True):
-                response += '<section class="panel"><header>{0}</header><main>{1}</main></section>'.format(time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(e[2])), e[1])
+            for e in sorted(db.get(), key=lambda e: e[3], reverse=True):
+                response += '<section class="panel {3}"><header><strong>{0}</strong> {1}</header><main>{2}</main></section>'.format(e[1], time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(e[3])), e[2], e[4])
 
         elif request == '/post':
-            if not 'message' in params:
+            if not 'message' in params or not 'name_' in params:
                 response += '<h1>Invalid Post</h1>'
             else:
-                db.post(params['message'])
+                color_list = ["bg-white", "bg-red", "bg-pink", "bg-purple", "bg-deep-purple", "bg-indigo"]
+                color = random.choice(color_list)
+                print(params, params['message'], params['name_'], color)
+                db.post(params['name_'], params['message'], color)
                 response += '<meta http-equiv="REFRESH" content="1;URL=/get"><h1>Post Successed.</h1>'
         else:
             response += '<h1>Invalid Post</h1>'
